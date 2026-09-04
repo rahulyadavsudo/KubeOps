@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  kubeops:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kubeops:latest
+    container_name: kubeops-platform
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

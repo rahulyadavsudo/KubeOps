@@ -1,0 +1,158 @@
+version: '3.8'
+
+services:
+  # ====================================================
+  # Service 1: API Gateway & UI BFF (Node.js / Express)
+  # ====================================================
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: kubeops-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - COLLECTOR_GRPC_URL=k8s-collector:50051
+      - TELEMETRY_GRPC_URL=telemetry-aggregator:50052
+      - ARGO_GRPC_URL=argo-controller:50053
+      - AI_DIAGNOSTICS_URL=http://ai-diagnostics:50054
+      - REDIS_URL=redis://redis-bus:6379
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      - k8s-collector
+      - telemetry-aggregator
+      - argo-controller
+      - ai-diagnostics
+    networks:
+      - kubeops-mesh
+
+  # ====================================================
+  # Service 2: K8s Cluster Informer Collector (Go)
+  # ====================================================
+  k8s-collector:
+    build:
+      context: ./k8s-collector-service
+      dockerfile: Dockerfile
+    container_name: kubeops-k8s-collector
+    ports:
+      - "50051:50051"
+    environment:
+      - PORT=50051
+      - KUBECONFIG=/root/.kube/config
+    volumes:
+      - ~/.kube/config:/root/.kube/config:ro
+    networks:
+      - kubeops-mesh
+
+  # ====================================================
+  # Service 3: Prometheus Telemetry Aggregator (Go)
+  # ====================================================
+  telemetry-aggregator:
+    build:
+      context: ./telemetry-metrics-service
+      dockerfile: Dockerfile
+    container_name: kubeops-telemetry
+    ports:
+      - "50052:50052"
+    environment:
+      - PORT=50052
+      - PROMETHEUS_URL=http://prometheus:9090
+    depends_on:
+      - prometheus
+    networks:
+      - kubeops-mesh
+
+  # ====================================================
+  # Service 4: Argo CD & Rollout Orchestrator (Go)
+  # ====================================================
+  argo-controller:
+    build:
+      context: ./argo-rollout-controller
+      dockerfile: Dockerfile
+    container_name: kubeops-argo-controller
+    ports:
+      - "50053:50053"
+    environment:
+      - PORT=50053
+      - ARGOCD_SERVER=https://argocd.company.internal
+      - ARGOCD_AUTH_TOKEN=${ARGOCD_AUTH_TOKEN}
+    networks:
+      - kubeops-mesh
+
+  # ====================================================
+  # Service 5: SRE AI Diagnostics Engine (Python)
+  # ====================================================
+  ai-diagnostics:
+    build:
+      context: ./ai-diagnostics-service
+      dockerfile: Dockerfile
+    container_name: kubeops-ai-engine
+    ports:
+      - "50054:50054"
+    environment:
+      - PORT=50054
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    networks:
+      - kubeops-mesh
+
+  # ====================================================
+  # Service 6: eBPF Network Security Inspector (Rust)
+  # ====================================================
+  ebpf-security:
+    build:
+      context: ./ebpf-security-service
+      dockerfile: Dockerfile
+    container_name: kubeops-ebpf-security
+    privileged: true
+    cap_add:
+      - SYS_ADMIN
+      - BPF
+      - NET_ADMIN
+    ports:
+      - "50055:50055"
+    volumes:
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/fs/bpf:/sys/fs/bpf
+    networks:
+      - kubeops-mesh
+
+  # ====================================================
+  # Service 7: FinOps & Cost Allocation Engine (Go)
+  # ====================================================
+  finops-service:
+    build:
+      context: ./finops-cost-service
+      dockerfile: Dockerfile
+    container_name: kubeops-finops
+    ports:
+      - "50056:50056"
+      - "8056:8056"
+    environment:
+      - PORT=50056
+      - HTTP_PORT=8056
+    networks:
+      - kubeops-mesh
+
+  # ====================================================
+  # Infrastructure: Shared Event Bus & Local Prometheus
+  # ====================================================
+  redis-bus:
+    image: redis:7-alpine
+    container_name: kubeops-redis-bus
+    ports:
+      - "6379:6379"
+    networks:
+      - kubeops-mesh
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: kubeops-prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - kubeops-mesh
+
+networks:
+  kubeops-mesh:
+    driver: bridge

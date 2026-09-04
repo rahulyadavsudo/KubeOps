@@ -1,0 +1,6 @@
+{
+  "name": "KubeOps - Kubernetes Deployment Pipeline & Observability Platform",
+  "description": "Production-grade Kubernetes deployment pipeline featuring Blue-Green rollouts, automated metric-driven rollback, Prometheus alerting, Grafana dashboards, HPA autoscaling, RBAC, encrypted secret management, centralized logging, and multi-cloud Terraform scripts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

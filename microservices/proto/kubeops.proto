@@ -1,0 +1,305 @@
+syntax = "proto3";
+
+package kubeops.v1;
+
+option go_package = "github.com/kubeops/platform/proto/v1;kubeopsv1";
+
+// ==========================================
+// K8s Cluster Collector Service (Go)
+// ==========================================
+service ClusterCollectorService {
+  rpc GetClusterState(ClusterRequest) returns (ClusterStateResponse);
+  rpc WatchPods(WatchPodsRequest) returns (stream PodEvent);
+  rpc GetNodeCapacity(ClusterRequest) returns (NodeCapacityResponse);
+}
+
+message ClusterRequest {
+  string cluster_id = 1;
+  string provider = 2; // aws, gcp, azure, local
+}
+
+message PodInfo {
+  string name = 1;
+  string namespace = 2;
+  string status = 3; // Running, Pending, CrashLoopBackOff
+  string ip = 4;
+  string node_name = 5;
+  int32 restart_count = 6;
+  string cpu_usage = 7;
+  string memory_usage = 8;
+  string version_tag = 9; // blue (v2.4.0) or green (v2.4.1)
+}
+
+message ClusterStateResponse {
+  string cluster_id = 1;
+  string k8s_version = 2;
+  int32 total_nodes = 3;
+  repeated PodInfo active_pods = 4;
+  string health_status = 5;
+}
+
+message WatchPodsRequest {
+  string namespace = 1;
+  string label_selector = 2;
+}
+
+message PodEvent {
+  string event_type = 1; // ADDED, MODIFIED, DELETED
+  PodInfo pod = 2;
+  int64 timestamp = 3;
+}
+
+message NodeCapacityResponse {
+  int32 total_vcpus = 1;
+  int64 total_memory_bytes = 2;
+  float cpu_utilization_pct = 3;
+  float memory_utilization_pct = 4;
+}
+
+// ==========================================
+// Prometheus Telemetry Aggregator (Go / Rust)
+// ==========================================
+service TelemetryAggregatorService {
+  rpc QueryPrometheus(PrometheusQueryRequest) returns (PrometheusQueryResponse);
+  rpc StreamTrafficMetrics(StreamMetricsRequest) returns (stream MetricPoint);
+  rpc EvaluateCanaryHealth(CanaryHealthRequest) returns (CanaryHealthResponse);
+}
+
+message PrometheusQueryRequest {
+  string promql = 1;
+  string range_start = 2;
+  string range_end = 3;
+  string step = 4;
+}
+
+message PrometheusQueryResponse {
+  string status = 1;
+  repeated MetricSeries series = 2;
+}
+
+message MetricSeries {
+  map<string, string> metric_labels = 1;
+  repeated MetricValue values = 2;
+}
+
+message MetricValue {
+  int64 timestamp = 1;
+  double value = 2;
+}
+
+message StreamMetricsRequest {
+  string service_name = 1;
+  string namespace = 2;
+  int32 interval_ms = 3;
+}
+
+message MetricPoint {
+  int64 timestamp = 1;
+  double rps = 2;
+  double p99_latency_ms = 3;
+  double error_rate_percent = 4;
+  int32 active_replicas = 5;
+}
+
+message CanaryHealthRequest {
+  string service_name = 1;
+  string candidate_version = 2;
+  double max_error_rate = 3;
+  double max_p99_latency_ms = 4;
+}
+
+message CanaryHealthResponse {
+  bool is_healthy = 1;
+  double current_error_rate = 2;
+  double current_p99_latency_ms = 3;
+  string failure_reason = 4;
+  bool trigger_rollback = 5;
+}
+
+// ==========================================
+// Argo CD & Rollout Controller (Go)
+// ==========================================
+service RolloutControllerService {
+  rpc SetTrafficSplit(TrafficSplitRequest) returns (RolloutActionResponse);
+  rpc TriggerInstantRollback(RollbackRequest) returns (RolloutActionResponse);
+  rpc SyncArgoApplication(ArgoSyncRequest) returns (ArgoSyncResponse);
+}
+
+message TrafficSplitRequest {
+  string service_name = 1;
+  int32 blue_weight_percent = 2;
+  int32 green_weight_percent = 3;
+  string virtual_service_name = 4;
+}
+
+message RollbackRequest {
+  string service_name = 1;
+  string target_stable_version = 2;
+  string reason = 3;
+}
+
+message RolloutActionResponse {
+  bool success = 1;
+  string current_stage = 2;
+  int32 active_blue_weight = 3;
+  int32 active_green_weight = 4;
+  string message = 5;
+}
+
+message ArgoSyncRequest {
+  string app_name = 1;
+  string revision = 2;
+  bool prune = 3;
+}
+
+message ArgoSyncResponse {
+  string sync_status = 1; // Synced, OutOfSync
+  string health_status = 2; // Healthy, Degraded, Progressing
+  string commit_hash = 3;
+}
+
+// ==========================================
+// SRE AI Diagnostics Engine (Python / Gemini)
+// ==========================================
+service SreDiagnosticsService {
+  rpc DiagnoseIncident(DiagnoseRequest) returns (DiagnoseResponse);
+  rpc GenerateRunbook(RunbookRequest) returns (RunbookResponse);
+}
+
+message DiagnoseRequest {
+  string incident_type = 1;
+  string service_name = 2;
+  double error_rate = 3;
+  double latency_p99 = 4;
+  int32 replica_count = 5;
+  string active_version = 6;
+  repeated string firing_alerts = 7;
+  string recent_logs = 8;
+}
+
+message DiagnoseResponse {
+  string root_cause_analysis = 1;
+  repeated string remediation_steps = 2;
+  string severity = 3; // CRITICAL, HIGH, MEDIUM, LOW
+  bool auto_rollback_recommended = 4;
+  double confidence_score = 5;
+}
+
+message RunbookRequest {
+  string alert_name = 1;
+  string service_name = 2;
+}
+
+message RunbookResponse {
+  string title = 1;
+  string markdown_runbook = 2;
+  repeated string kubectl_commands = 3;
+}
+
+// ==========================================
+// eBPF Network Security & Packet Inspector (Rust)
+// ==========================================
+service EbpfSecurityService {
+  rpc StreamFlowEvents(FlowEventsRequest) returns (stream FlowEvent);
+  rpc EnforceKernelPolicy(PolicyRequest) returns (PolicyResponse);
+  rpc GetDroppedPackets(DroppedPacketsRequest) returns (DroppedPacketsResponse);
+}
+
+message FlowEventsRequest {
+  string namespace = 1;
+  bool drop_only = 2;
+}
+
+message FlowEvent {
+  string id = 1;
+  string timestamp = 2;
+  string source_pod = 3;
+  string source_ip = 4;
+  string dest_ip = 5;
+  int32 dest_port = 6;
+  string protocol = 7;
+  string decision = 8; // ALLOW, DROP, AUDIT
+  string reason = 9;
+  string syscall = 10;
+  int32 latency_us = 11;
+}
+
+message PolicyRequest {
+  string policy_id = 1;
+  string action = 2; // ENABLE, DISABLE, ENFORCE_STRICT
+}
+
+message PolicyResponse {
+  bool success = 1;
+  string applied_bpf_filter = 2;
+}
+
+message DroppedPacketsRequest {
+  string time_window = 1;
+}
+
+message DroppedPacketsResponse {
+  int64 total_dropped = 1;
+  repeated string top_blocked_destinations = 2;
+}
+
+// ==========================================
+// FinOps & Cost Allocation Service (Go)
+// ==========================================
+service FinopsCostService {
+  rpc GetCostSummary(CostSummaryRequest) returns (CostSummaryResponse);
+  rpc GetNamespaceBreakdown(NamespaceCostRequest) returns (NamespaceCostResponse);
+  rpc GetRightsizingRecommendations(RightsizingRequest) returns (RightsizingResponse);
+}
+
+message CostSummaryRequest {
+  string cluster_id = 1;
+  string billing_period = 2; // CURRENT_MONTH, LAST_30_DAYS
+}
+
+message CostSummaryResponse {
+  double monthly_spend_total = 1;
+  double daily_run_rate = 2;
+  double wasted_idle_spend = 3;
+  double potential_savings_pct = 4;
+  string currency = 5;
+  map<string, double> cloud_providers_spend = 6;
+}
+
+message NamespaceCostRequest {
+  string cluster_id = 1;
+}
+
+message NamespaceCostItem {
+  string namespace = 1;
+  double monthly_cost = 2;
+  double cpu_cost = 3;
+  double ram_cost = 4;
+  double egress_cost = 5;
+  double efficiency_pct = 6;
+}
+
+message NamespaceCostResponse {
+  repeated NamespaceCostItem namespaces = 1;
+}
+
+message RightsizingRequest {
+  string cluster_id = 1;
+  double min_monthly_saving_threshold = 2;
+}
+
+message RightsizingItem {
+  string workload_name = 1;
+  string namespace = 2;
+  string current_cpu = 3;
+  string recommended_cpu = 4;
+  string current_ram = 5;
+  string recommended_ram = 6;
+  double estimated_monthly_saving = 7;
+  string action = 8;
+}
+
+message RightsizingResponse {
+  repeated RightsizingItem recommendations = 1;
+  double total_monthly_recovery_usd = 2;
+}
